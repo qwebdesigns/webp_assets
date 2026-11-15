@@ -2,15 +2,20 @@ node_modules/
 dist/
 public/wasm/
 
-# Тестовые бандлы, скачанные `npm run samples` (это чужие ассеты).
-# Свои файлы можно коммитить — уберите нужные строки или добавьте исключения.
+# Скачанные бандлы (`npm run samples`) — чужие ассеты, в git по умолчанию не попадают.
 public/bundles/*.webp
 public/bundles/*.bundle
 public/bundles/*.unity3d
 public/bundles/*.assets
 public/bundles/*.dat
 public/bundles/*.bin
+
+# Исключения: эти файлы лежат на сайте.
+!public/bundles/itemicons.webp
+!public/bundles/ui.webp
+!public/bundles/sounds.webp
 !public/bundles/bundles.example.json
+!public/bundles/bundles.json
 
 __pycache__/
 *.pyc
