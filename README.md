@@ -3,11 +3,14 @@
 Статический просмотрщик Unity AssetBundle: открывает `itemicons.webp`, `ui.webp`,
 `sounds.webp` и другие бандлы **прямо в браузере** и показывает текстуры, звуки и текст.
 
-- Никакого бэкенда и Python — только статические файлы (Vite → GitHub Pages).
+- Никакого Python — статические файлы + маленький PHP-прокси (только если нужны
+  бандлы с чужих серверов без CORS).
 - Разбор UnityFS и декодирование DXT/BC/ETC/ASTC/**Crunch** выполняются на устройстве
   посетителя в Web Worker + WebAssembly.
 - Файлы никуда не загружаются: сервер отдаёт только сам сайт.
 - Локальный файл или drag & drop работают всегда, даже если у чужого сервера нет CORS.
+- Кнопка **«Сервер игры»** берёт бандлы прямо с `blockade3d.com` через свой прокси,
+  так что обновления игры подхватываются без ручной заливки файлов.
 
 ## Быстрый старт
 
@@ -58,29 +61,85 @@ npm run samples -- itemicons hud
 Хотите показать их на своём сайте — уберите соответствующие строки из `.gitignore`
 или добавьте исключения. Без бандлов сайт просто покажет экран «Откройте Unity AssetBundle».
 
-## Деплой на GitHub Pages
+## Деплой на свой хостинг (PHP)
+
+Нужен любой хостинг с PHP 7.4+ и правом записи в папку (кэш прокси). Сборка папки:
+
+```powershell
+npm run pack                    # dist + host/ → upload/ и upload.zip (с бандлами, ~23 МБ)
+npm run pack -- --no-bundles    # без бандлов, ~0.7 МБ; сайт берёт их с сервера игры
+```
+
+`upload/` — это содержимое папки сайта (например, `/webp_assets/`):
+
+```
+upload/index.html
+upload/assets/…        скрипты Vite
+upload/wasm/…          декодер текстур
+upload/bundles/…       только при сборке с бандлами
+upload/host/proxy.php  PHP-прокси
+upload/host/cacert.pem CA-бандл для cURL (лечит «unable to get local issuer certificate»)
+upload/host/.htaccess  запрещает отдачу .env и кэша
+upload/host/.env.example
+```
+
+1. Залейте содержимое `upload/` в папку сайта (файловый менеджер хостинга или FTP).
+2. Откройте `https://ваш-сайт/host/proxy.php?ping=1` — должен прийти JSON `"ok": true`
+   с полями `curl`, `cache_writable`, `allowed_hosts`.
+3. Откройте сайт, раскройте блок **«Прокси для чужих серверов»** (по умолчанию там
+   `host/proxy.php`) и нажмите **«Проверить»** — появится «Прокси работает: …».
+4. Нажмите **«Сервер игры»** — появятся 18 бандлов с меткой «сервер». Они качаются
+   через ваш домен, кэшируются на сервере и открываются как обычно.
+
+Настройки прокси — в `host/.env` (на сервере создайте файл из `.env.example`):
+
+| Ключ | По умолчанию | Что делает |
+|---|---|---|
+| `PROXY_ALLOWED_HOSTS` | `blockade3d.com` | Белый список доменов, можно `*.example.com` |
+| `PROXY_CACHE_TTL` | `3600` | Сколько секунд держать файл в `host/cache/` |
+| `PROXY_MAX_BYTES` | `0` | Лимит размера файла, 0 — без лимита |
+| `PROXY_TOKEN` | пусто | Токен доступа (`?token=…` или `X-Proxy-Token`) |
+| `PROXY_CORS` | `*` | `Access-Control-Allow-Origin` для прокси |
+
+Адрес прокси можно задать ссылкой: `?proxy=https://…/host/proxy.php` (или `?proxy=off`).
+Он запоминается в `localStorage`. Флаг `&fresh=1` в запросе к прокси перекачивает файл
+в обход кэша.
+
+### Локальная проверка прокси
+
+```powershell
+php -S 127.0.0.1:8099 -t host    # отдельным окном
+npm run dev                      # /host/proxy.php проксируется на этот PHP
+```
+
+## Деплой на GitHub Pages (необязательно)
 
 1. Запушьте репозиторий на GitHub (ветка `main`).
 2. **Settings → Pages → Build and deployment → Source: GitHub Actions.**
-3. Готовый workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)
-   собирает сайт (`npm ci && npm run build`) и публикует `dist` при каждом пуше.
+3. Workflow [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) собирает сайт
+   (`npm ci && npm run build`) и публикует `dist` при каждом пуше.
 
-`vite.config.js` использует `base: "./"`, поэтому сайт работает и в корне домена,
-и в подпапке `/<repo>/`, и пути к `wasm/` считаются от `document.baseURI`.
+Прокси на Pages не работает (PHP нет), поэтому `host/proxy.php` вернёт 404, а кнопка
+«Сервер игры» попросит включить прокси. Всё остальное — локальные файлы и своя папка
+`bundles/` — работает.
+
+`vite.config.js` использует `base: "./"`, поэтому сайт живёт и в корне домена, и в
+подпапке `/<repo>/`, и пути к `wasm/` считаются от `document.baseURI`.
 
 ## Про CORS
 
 Бандл читается через `fetch`, а браузер разрешает это только для своего origin или
 при заголовке `Access-Control-Allow-Origin`. `blockade3d.com` такой заголовок не отдаёт,
-поэтому ссылку `https://blockade3d.com/ClassicBundles/itemicons.webp` открыть нельзя —
-просмотрщик покажет понятную ошибку и подсказку.
+поэтому напрямую ссылку `https://blockade3d.com/ClassicBundles/itemicons.webp` открыть
+нельзя — просмотрщик попробует прокси и покажет понятную ошибку, если его нет.
 
 Варианты:
 
-- положить бандлы рядом с сайтом (`public/bundles/`) — тогда CORS не нужен;
+- **прокси на своём хостинге** (`host/proxy.php`) — самый удобный: файлы всегда свежие,
+  CORS не нужен, кэш снимает нагрузку с сервера игры;
+- положить бандлы рядом с сайтом (`public/bundles/`) — тогда CORS не нужен вообще;
 - скачать файл и открыть кнопкой «Файл…» или перетащить в окно — локальные файлы
-  читаются всегда;
-- поднять свой прокси/хранилище с `Access-Control-Allow-Origin`.
+  читаются всегда.
 
 ## Что умеет
 
@@ -93,6 +152,8 @@ npm run samples -- itemicons hud
   и появляется кнопка «Скачать ZIP» — так браузер не блокирует скачивание, начатое
   после `await` без жеста пользователя.
 - Ссылку можно шарить: `?src=https://…/itemicons.webp` открывает бандл сразу.
+- **Прокси**: бандлы с чужих доменов качаются через `host/proxy.php`, кэшируются на
+  сервере и обновляются сами; кнопка «Сервер игры» проверяет 18 бандлов BLOCKADE.
 
 ## Ограничения
 
@@ -107,13 +168,17 @@ npm run samples -- itemicons hud
 
 ```
 index.html            разметка интерфейса
-src/main.js           UI, загрузка по ссылке/из файла, скан папки, ZIP
+src/main.js           UI, загрузка по ссылке/из файла, скан папки, прокси, ZIP
 src/worker.js         Web Worker: разбор UnityFS, декодирование, экспорт
+src/proxy.js          адреса прокси (общий модуль страницы и воркера)
 src/imagecodec.js     PNG-энкодер, ресайз, определение формата аудио
 src/style.css         тёмная адаптивная тема
 public/wasm/          texture2ddecoder.js/.wasm (копируется из node_modules)
 public/bundles/       ваши бандлы и bundles.json
-scripts/fetch-samples.mjs
+host/                 PHP-прокси для чужих серверов (не коммитится, см. .gitignore)
+scripts/fetch-samples.mjs  скачивание бандлов для локальных тестов
+scripts/pack-host.mjs      сборка upload/ и upload.zip для хостинга
+scripts/game-bundles.json  список бандлов игры для сборки без локальных копий
 tools/python-viewer/  старая версия на Python + UnityPy (локальный сервер)
 ```
 

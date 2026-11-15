@@ -13,6 +13,13 @@ export default defineConfig({
   },
   server: {
     port: 5173,
+    // Локальный PHP-прокси: `php -S 127.0.0.1:8099 -t host`, затем npm run dev.
+    proxy: {
+      "/host/proxy.php": {
+        target: "http://127.0.0.1:8099",
+        rewrite: () => "/proxy.php",
+      },
+    },
   },
   preview: {
     port: 4173,

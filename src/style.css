@@ -147,6 +147,49 @@ select {
 }
 
 .hint { margin: 2px 0 0; color: var(--muted); font-size: 11.5px; line-height: 1.5; }
+.hint code { font-size: 11px; }
+
+/* ---------- proxy ---------- */
+
+.proxy { border: 1px solid var(--line); border-radius: 11px; padding: 0 12px 12px; background: rgba(255, 255, 255, .015); }
+.proxy > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 10px 0 8px;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  list-style: none;
+}
+.proxy > summary::-webkit-details-marker { display: none; }
+.proxy > summary::before {
+  content: "▸";
+  font-size: 10px;
+  transition: transform .15s;
+}
+.proxy[open] > summary::before { transform: rotate(90deg); }
+.proxy > summary:hover { color: var(--text); }
+.proxy[open] > summary { margin-bottom: 6px; }
+
+.proxy-badge {
+  margin-left: auto;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-size: 10.5px;
+  letter-spacing: .04em;
+  text-transform: none;
+  color: var(--muted);
+}
+.proxy-badge[data-state="ok"] { color: #8fe3b0; border-color: rgba(143, 227, 176, .45); }
+.proxy-badge[data-state="bad"] { color: #ff9aa2; border-color: rgba(255, 154, 162, .45); }
+.proxy-badge[data-state="pending"] { color: #ffd479; border-color: rgba(255, 212, 121, .45); }
+
+.hint[data-state="ok"] { color: #8fe3b0; }
+.hint[data-state="bad"] { color: #ff9aa2; }
 
 /* ---------- buttons ---------- */
 
@@ -207,6 +250,15 @@ select {
 
 .chip:hover { border-color: rgba(110, 168, 254, .65); background: #212837; }
 .chip .sz { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip .tag {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+  color: #9cc7ff;
+  border: 1px solid rgba(110, 168, 254, .35);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
 .chip.active { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(110, 168, 254, .16) inset; }
 .chip.static { cursor: default; color: var(--muted); }
 .chip.static:hover { border-color: var(--line); background: var(--panel-2); }

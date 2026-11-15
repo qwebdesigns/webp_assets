@@ -2,6 +2,7 @@ import { load, textAssetString } from "unity-asset-reader";
 import { isImage, imageInfo, decodeImage, initTexture } from "unity-asset-reader-texture";
 import { zipSync } from "fflate";
 import { pngBlob, sniffAudio, safeBaseName } from "./imagecodec.js";
+import { proxiedUrl } from "./proxy.js";
 
 /* ------------------------------------------------------------------ */
 /* state                                                               */
@@ -163,7 +164,61 @@ function looksLikeBundle(bytes) {
   return BUNDLE_SIGNATURES.some((signature) => head.startsWith(signature));
 }
 
-async function fetchWithProgress(url, id, signal) {
+async function fetchWithProgress(url, id, signal, proxy) {
+  const origin = originOf(url);
+  if (!origin || !blockedOrigins.has(origin)) {
+    try {
+      return await fetchBytes(url, id, signal);
+    } catch (error) {
+      if (error && error.name === "AbortError") throw error;
+      if (error && error.name === "NetworkError" && origin) blockedOrigins.add(origin);
+      if (!proxy || !shouldRetryViaProxy(url, error)) throw error;
+      progress(id, "connect", { received: 0, total: 0, viaProxy: true });
+      return await fetchBytes(proxiedUrl(proxy, url), id, signal, { viaProxy: true });
+    }
+  }
+
+  if (!proxy || !canProxy(url)) {
+    return await fetchBytes(url, id, signal);
+  }
+  // Этот домен уже один раз не отдал CORS — сразу идём через прокси.
+  progress(id, "connect", { received: 0, total: 0, viaProxy: true });
+  return await fetchBytes(proxiedUrl(proxy, url), id, signal, { viaProxy: true });
+}
+
+/**
+ * Домены, которые уже отказали напрямую (CORS). Живёт в памяти воркера:
+ * второй бандл с того же сервера качается через прокси без лишней попытки.
+ */
+const blockedOrigins = new Set();
+
+function originOf(url) {
+  try {
+    return new URL(url, self.location.href).origin;
+  } catch {
+    return "";
+  }
+}
+
+/** Прокси имеет смысл только для чужих http(s)-адресов. */
+function canProxy(url) {
+  try {
+    const target = new URL(url, self.location.href);
+    return /^https?:$/.test(target.protocol) && target.origin !== self.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function shouldRetryViaProxy(url, error) {
+  if (!canProxy(url)) return false;
+  if (error.name === "NetworkError") return true;
+  if (error.name === "HttpError") return error.status === 403 || error.status >= 500;
+  return false;
+}
+
+async function fetchBytes(url, id, signal, options) {
+  const opts = options || {};
   let response;
   try {
     response = await fetch(url, { signal, credentials: "same-origin" });
@@ -175,18 +230,27 @@ async function fetchWithProgress(url, id, signal) {
         : String((error && error.message) || error)
     );
     wrapped.name = "NetworkError";
-    wrapped.hint =
-      "Скорее всего, сервер не отдаёт CORS-заголовок Access-Control-Allow-Origin, " +
-      "либо файл недоступен. Скачайте бандл и откройте его кнопкой «Файл…» — " +
-      "локальные файлы читаются без ограничений.";
+    wrapped.hint = opts.viaProxy
+      ? "Прокси не смог скачать файл. Проверьте, что host/proxy.php доступен и что домен " +
+        "внесён в PROXY_ALLOWED_HOSTS; диагностика — host/proxy.php?ping=1."
+      : "Скорее всего, сервер не отдаёт CORS-заголовок Access-Control-Allow-Origin, " +
+        "либо файл недоступен. Можно включить прокси (host/proxy.php) или скачать бандл " +
+        "и открыть его кнопкой «Файл…» — локальные файлы читаются без ограничений.";
     throw wrapped;
   }
 
   if (!response.ok) {
     const error = new Error(`HTTP ${response.status} ${response.statusText}`.trim());
     error.name = "HttpError";
-    error.hint =
-      response.status === 404
+    error.status = response.status;
+    error.hint = opts.viaProxy
+      ? response.status === 403
+        ? "Прокси запретил этот адрес: домен не в белом списке (PROXY_ALLOWED_HOSTS) или неверный токен."
+        : response.status === 502 || response.status === 400
+          ? "Прокси не смог скачать файл с сервера игры. Откройте host/proxy.php?ping=1 — " +
+            "там видно, включены ли cURL и запись в кэш."
+          : "Прокси ответил ошибкой. Проверьте путь к host/proxy.php на сервере."
+      : response.status === 404
         ? "Файл не найден. Проверьте путь и имя файла (регистр важен)."
         : "Сервер ответил ошибкой. Проверьте ссылку и доступность файла.";
     throw error;
@@ -240,7 +304,7 @@ async function loadBundle(message) {
 
     if (message.url) {
       progress(message.id, "connect", { received: 0, total: 0 });
-      const bytes = await fetchWithProgress(message.url, message.id, controller.signal);
+      const bytes = await fetchWithProgress(message.url, message.id, controller.signal, message.proxy);
       label = fileNameFromUrl(message.url);
       inputs = [{ name: label, data: bytes }];
       progress(message.id, "parse", { received: bytes.length, total: bytes.length });

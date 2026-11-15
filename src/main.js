@@ -1,4 +1,12 @@
 import "./style.css";
+import {
+  DEFAULT_PROXY_PATH,
+  PROXY_STORAGE_KEY,
+  isCrossOrigin,
+  normalizeProxy,
+  proxyInfoUrl,
+  proxiedUrl,
+} from "./proxy.js";
 
 /* ------------------------------------------------------------------ */
 /* constants                                                           */
@@ -6,6 +14,9 @@ import "./style.css";
 
 const BUNDLES_BASE = new URL("bundles/", document.baseURI).href;
 const WASM_PATH = new URL("wasm/", document.baseURI).href;
+
+/** Папка бандлов на сервере игры — кнопка «Сервер игры». */
+const GAME_BUNDLES_BASE = "https://blockade3d.com/ClassicBundles/";
 
 /**
  * Names used by BLOCKADE's ClassicBundles folder. They are only a fallback:
@@ -49,6 +60,12 @@ const els = {
   open: $("#open"),
   scan: $("#scan"),
   base: $("#base"),
+  scanRemote: $("#scanRemote"),
+  proxy: $("#proxy"),
+  proxyBox: $("#proxyBox"),
+  proxyBadge: $("#proxyBadge"),
+  proxyCheck: $("#proxyCheck"),
+  proxyState: $("#proxyState"),
   pickFile: $("#pickFile"),
   emptyPick: $("#emptyPick"),
   emptyScan: $("#emptyScan"),
@@ -108,6 +125,8 @@ const state = {
   view: [],
   bundle: null,
   src: "",
+  proxy: "",
+  proxyStatus: "",
   query: "",
   type: "all",
   sort: "name",
@@ -281,7 +300,7 @@ function setProgress(percent, label, indeterminate = false) {
 
 function updateProgress(event) {
   if (event.phase === "connect") {
-    setProgress(2, "Соединяюсь…", true);
+    setProgress(2, event.viaProxy ? "Соединяюсь через прокси…" : "Соединяюсь…", true);
   } else if (event.phase === "download") {
     const total = event.total || 0;
     const percent = total ? (event.received / total) * 100 : 0;
@@ -837,7 +856,7 @@ async function openUrl(input, options = {}) {
   hideError();
 
   try {
-    const message = await call("load", { url: url.href, wasmPath: WASM_PATH }, {
+    const message = await call("load", { url: url.href, wasmPath: WASM_PATH, proxy: state.proxy }, {
       onProgress: updateProgress,
     });
     if (token !== state.loadToken) return;
@@ -863,7 +882,9 @@ async function openUrl(input, options = {}) {
 
 function defaultHint(error) {
   if (error && error.name === "NetworkError") {
-    return "Сторонний сервер не разрешает чтение из браузера (CORS). Скачайте файл и откройте его кнопкой «Файл…».";
+    return state.proxy
+      ? "Не удалось скачать ни напрямую, ни через прокси. Откройте host/proxy.php?ping=1 — там видно, включены ли cURL и кэш."
+      : "Сторонний сервер не разрешает чтение из браузера (CORS). Включите прокси в блоке «Прокси для чужих серверов» или скачайте файл и откройте кнопкой «Файл…».";
   }
   if (error && error.name === "HttpError") {
     return "Проверьте ссылку: файл должен существовать и быть доступным без авторизации.";
@@ -930,7 +951,21 @@ async function readFirstChunk(response) {
   }
 }
 
-async function probeBundle(url) {
+/**
+ * Проверяет, лежит ли по адресу бандл.
+ *
+ * Для чужого домена без CORS напрямую ничего не выйдет, поэтому при настроенном
+ * прокси размер спрашивается у него (?info=1 — это HEAD на источнике, без
+ * скачивания мегабайтов), а магию байтов прокси проверять не нужно.
+ */
+async function probeBundle(url, options = {}) {
+  const remote = options.remote || isCrossOrigin(url.href);
+
+  if (remote) {
+    if (!state.proxy) return { networkError: true, corsOnly: true };
+    return probeViaProxy(url.href);
+  }
+
   let head;
   try {
     head = await fetch(url, { method: "HEAD", cache: "no-store" });
@@ -952,6 +987,35 @@ async function probeBundle(url) {
     // Range/CORS not available — trust the HEAD response.
   }
   return { bytes };
+}
+
+async function probeViaProxy(target) {
+  const endpoint = proxyInfoUrl(state.proxy, target);
+  if (!endpoint) return { networkError: true };
+  let response;
+  try {
+    response = await fetch(endpoint, { cache: "no-store" });
+  } catch {
+    return { networkError: true, proxyFailed: true };
+  }
+  if (response.status === 403) return { networkError: true, proxyDenied: true };
+  if (response.status === 404) {
+    // Прокси на 404 отвечает JSON'ом (файла нет на источнике), а если JSON нет —
+    // значит самого скрипта по этому адресу не существует.
+    return /json/i.test(response.headers.get("content-type") || "")
+      ? null
+      : { networkError: true, proxyDown: true };
+  }
+  if (!response.ok) return { networkError: true, proxyFailed: true };
+  try {
+    const info = await response.json();
+    if (!info || info.ok === false) return { networkError: true, proxyFailed: true };
+    const size = Number(info.size) || 0;
+    if (!size) return null;
+    return { bytes: size, viaProxy: true };
+  } catch {
+    return null;
+  }
 }
 
 function candidateNames(name) {
@@ -990,10 +1054,14 @@ async function scanBase(input, options = {}) {
   els.chips.textContent = "";
   els.chips.append(el("span", { className: "chip static" }, "Проверяю папку…"));
 
+  const remote = isCrossOrigin(base.href);
+
   let candidates = null;
   let manifestUsed = false;
+  const manifestUrl = new URL("bundles.json", base).href;
+  const manifestTarget = remote && state.proxy ? proxiedUrl(state.proxy, manifestUrl) : manifestUrl;
   try {
-    const response = await fetch(new URL("bundles.json", base), { cache: "no-store" });
+    const response = await fetch(manifestTarget, { cache: "no-store" });
     if (response.ok && /json/i.test(response.headers.get("content-type") || "")) {
       const data = await response.json();
       const list = Array.isArray(data) ? data : data.bundles || data.files || [];
@@ -1012,26 +1080,33 @@ async function scanBase(input, options = {}) {
 
   const found = [];
   let networkErrors = 0;
+  let proxyDenied = 0;
+  let proxyDown = 0;
 
-  await mapLimit(candidates, 6, async (candidate) => {
-    for (const name of candidateNames(candidate.name)) {
+  await mapLimit(candidates, remote ? 4 : 6, async (candidate) => {
+    // В bundles.json можно указать готовый адрес — например, на сервер игры.
+    const direct = typeof candidate.url === "string" && /^https?:/i.test(candidate.url) ? candidate.url : "";
+    for (const name of direct ? [direct] : candidateNames(candidate.name)) {
       let url;
       try {
         url = new URL(name, base);
       } catch {
         continue;
       }
-      const probe = await probeBundle(url.href);
+      const probe = await probeBundle(url, { remote: isCrossOrigin(url.href) });
       if (probe && probe.networkError) {
         networkErrors += 1;
+        if (probe.proxyDenied) proxyDenied += 1;
+        if (probe.proxyDown) proxyDown += 1;
         return;
       }
       if (probe) {
         const declared = Number(candidate.bytes) || 0;
         found.push({
-          label: displayLabel(name),
+          label: displayLabel(direct ? candidate.name : name),
           url: url.href,
           bytes: declared || probe.bytes || 0,
+          remote: isCrossOrigin(url.href),
           order: KNOWN_BUNDLES.indexOf(displayLabel(candidate.name)),
         });
         return;
@@ -1048,16 +1123,26 @@ async function scanBase(input, options = {}) {
   if (!found.length) {
     els.chips.append(el("span", { className: "chip static" }, "Бандлы не найдены"));
     if (!options.auto) {
-      if (networkErrors) {
-        toast("Не удалось проверить папку: сервер не отдаёт CORS или папка недоступна");
+      if (proxyDown) {
+        toast("Прокси не отвечает — проверьте, что host/proxy.php загружен и PHP включён");
+      } else if (proxyDenied) {
+        toast("Прокси запретил домен — добавьте его в PROXY_ALLOWED_HOSTS");
+      } else if (networkErrors) {
+        toast(remote && !state.proxy
+          ? "Сервер игры не отдаёт CORS: включите прокси в блоке ниже"
+          : "Не удалось проверить папку: сервер не отдаёт CORS или папка недоступна");
       } else {
         toast("В этой папке нет известных бандлов");
       }
     }
     if (!state.bundle) {
-      els.emptyNote.textContent = networkErrors
-        ? "Папку не удалось проверить: сервер не отдаёт CORS. Скачайте бандл и перетащите его в окно."
-        : "Пока в папке bundles/ ничего не найдено. Положите туда *.webp / *.bundle или откройте файл вручную.";
+      els.emptyNote.textContent = proxyDown
+        ? "Прокси не отвечает. Проверьте адрес в блоке «Прокси для чужих серверов» и файл host/proxy.php на сервере."
+        : remote && !state.proxy
+          ? "Сервер игры не отдаёт CORS-заголовок. Откройте блок «Прокси для чужих серверов», проверьте адрес и нажмите «Найти бандлы» ещё раз."
+          : networkErrors
+            ? "Папку не удалось проверить: сервер не отдаёт CORS. Скачайте бандл и перетащите его в окно."
+            : "Пока в папке bundles/ ничего не найдено. Положите туда *.webp / *.bundle или откройте файл вручную.";
     }
     return;
   }
@@ -1065,13 +1150,14 @@ async function scanBase(input, options = {}) {
   for (const item of found) {
     const chip = el("button", { className: "chip", type: "button", title: item.url },
       item.label,
-      item.bytes ? el("span", { className: "sz" }, formatBytes(item.bytes)) : null);
+      item.bytes ? el("span", { className: "sz" }, formatBytes(item.bytes)) : null,
+      item.remote ? el("span", { className: "tag" }, "сервер") : null);
     chip.dataset.url = item.url;
     chip.addEventListener("click", () => openUrl(item.url));
     els.chips.append(chip);
   }
 
-  if (!manifestUsed) {
+  if (!manifestUsed && !remote) {
     const missing = KNOWN_BUNDLES.length - found.length;
     if (missing > 0) {
       els.chips.append(el("span", { className: "chip static" }, `+${missing} нет`));
@@ -1181,6 +1267,109 @@ function saveZip() {
 }
 
 /* ------------------------------------------------------------------ */
+/* proxy                                                               */
+/* ------------------------------------------------------------------ */
+
+function readStoredProxy() {
+  try {
+    return localStorage.getItem(PROXY_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function storeProxy(value) {
+  try {
+    if (value) localStorage.setItem(PROXY_STORAGE_KEY, value);
+    else localStorage.removeItem(PROXY_STORAGE_KEY);
+  } catch {
+    // приватный режим — настройка просто не запомнится
+  }
+}
+
+function setProxyState(text, state) {
+  els.proxyState.textContent = text;
+  if (state) els.proxyState.dataset.state = state;
+  else delete els.proxyState.dataset.state;
+
+  const badge = !state ? "не проверен" : state === "ok" ? "работает" : state === "bad" ? "не отвечает" : "проверяю…";
+  els.proxyBadge.textContent = state === "off" ? "выключен" : badge;
+  if (state) els.proxyBadge.dataset.state = state;
+  else delete els.proxyBadge.dataset.state;
+}
+
+/** Сохраняет адрес прокси и обновляет поле ввода. */
+function applyProxy(value, options = {}) {
+  state.proxy = normalizeProxy(value, document.baseURI);
+  els.proxy.value = state.proxy;
+  if (options.save !== false) storeProxy(state.proxy);
+  if (!state.proxy) {
+    setProxyState("Прокси выключен. Чужие домены без CORS открыть не получится, но локальные файлы и своя папка bundles/ работают как обычно.", "off");
+  } else if (options.state !== false) {
+    setProxyState(`Прокси: ${state.proxy}. Нажмите «Проверить», чтобы увидеть его состояние.`);
+  }
+  return state.proxy;
+}
+
+function initProxy() {
+  const params = new URLSearchParams(location.search);
+  const fromQuery = params.get("proxy");
+  if (fromQuery !== null) {
+    applyProxy(fromQuery);
+    return;
+  }
+  const stored = readStoredProxy();
+  applyProxy(stored === null ? DEFAULT_PROXY_PATH : stored);
+}
+
+async function checkProxy(options = {}) {
+  const value = applyProxy(els.proxy.value);
+  if (!value) return false;
+
+  setProxyState("Проверяю прокси…", "pending");
+
+  let endpoint;
+  try {
+    endpoint = new URL(value);
+    endpoint.searchParams.set("ping", "1");
+  } catch {
+    setProxyState("Адрес прокси выглядит некорректно.", "bad");
+    return false;
+  }
+
+  try {
+    const response = await fetch(endpoint.href, { cache: "no-store" });
+    if (!response.ok) {
+      setProxyState(`Прокси ответил HTTP ${response.status}. Проверьте, что файл лежит по адресу ${value} и PHP на сервере включён.`, "bad");
+      return false;
+    }
+    const info = await response.json();
+    if (!info || info.ok !== true) {
+      setProxyState("Прокси ответил, но это не тот скрипт: " + JSON.stringify(info).slice(0, 160), "bad");
+      return false;
+    }
+
+    const fetchPath = info.curl ? "cURL" : info.allow_url_fopen ? "allow_url_fopen" : "";
+    if (!fetchPath) {
+      setProxyState("PHP работает, но ему запрещено ходить в интернет: нет ни cURL, ни allow_url_fopen. Попросите хостера включить cURL.", "bad");
+      return false;
+    }
+
+    const parts = [`${fetchPath}`, info.cache_writable ? "кэш включён" : "кэш недоступен"];
+    const hosts = (info.allowed_hosts || []).join(", ") || "—";
+    setProxyState(`Прокси работает: PHP ${info.php}, ${parts.join(", ")}. Разрешённые домены: ${hosts}.`, "ok");
+    return true;
+  } catch (error) {
+    if (!options.silent) {
+      setProxyState("Прокси не отвечает: " + (error.message || error) + ". Проверьте адрес и что скрипт загружен.", "bad");
+    } else {
+      setProxyState("Прокси не отвечает — чужие домены откроются только локальным файлом.", "bad");
+    }
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* events                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -1193,6 +1382,29 @@ function bindEvents() {
   els.scan.addEventListener("click", () => scanBase(els.base.value));
   els.base.addEventListener("keydown", (event) => {
     if (event.key === "Enter") scanBase(els.base.value);
+  });
+  els.scanRemote.addEventListener("click", () => {
+    els.base.value = GAME_BUNDLES_BASE;
+    if (state.proxy) {
+      els.proxyBox.open = true;
+      scanBase(GAME_BUNDLES_BASE, { auto: true });
+    } else {
+      els.proxyBox.open = true;
+      toast("Сначала включите прокси: сервер игры не отдаёт CORS");
+      scanBase(GAME_BUNDLES_BASE, { auto: true });
+    }
+  });
+
+  els.proxy.addEventListener("change", () => applyProxy(els.proxy.value));
+  els.proxy.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") checkProxy();
+  });
+  els.proxyCheck.addEventListener("click", async () => {
+    els.proxyBox.open = true;
+    const ok = await checkProxy();
+    if (ok && isCrossOrigin(els.base.value || "", document.baseURI)) {
+      scanBase(els.base.value, { auto: true });
+    }
   });
 
   els.pickFile.addEventListener("click", () => els.file.click());
@@ -1325,6 +1537,7 @@ function boot() {
   }
 
   const params = new URLSearchParams(location.search);
+  initProxy();
   const src = params.get("src");
   if (src) {
     els.src.value = src;
@@ -1334,6 +1547,9 @@ function boot() {
   }
 
   scanBase(els.base.value, { auto: true, autoOpen: true });
+  if (state.proxy) {
+    setTimeout(() => checkProxy({ silent: true }), 600);
+  }
 }
 
 boot();

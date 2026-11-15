@@ -42,8 +42,8 @@
         <input id="file" type="file" hidden multiple
                accept=".webp,.bundle,.unity3d,.assets,.dat,.bin,.resS,.ress,application/octet-stream">
       </div>
-      <p class="hint">Локальный файл читается без ограничений. Ссылка должна быть на этот же сайт
-        или на сервер с CORS — иначе браузер не даст прочитать ответ.</p>
+      <p class="hint">Локальный файл читается без ограничений. Ссылка на чужой домен без CORS
+        откроется через прокси — включите его ниже.</p>
     </div>
 
     <div class="field">
@@ -51,8 +51,24 @@
       <div class="control">
         <input id="base" spellcheck="false" autocomplete="off" placeholder="bundles/">
         <button id="scan" class="btn" type="button">Найти бандлы</button>
+        <button id="scanRemote" class="btn ghost" type="button"
+                title="Проверить папку ClassicBundles на сервере игры (нужен прокси)">Сервер игры</button>
       </div>
     </div>
+
+    <details id="proxyBox" class="field proxy">
+      <summary>
+        <span>Прокси для чужих серверов</span>
+        <span id="proxyBadge" class="proxy-badge">выключен</span>
+      </summary>
+      <div class="control">
+        <input id="proxy" spellcheck="false" autocomplete="off" placeholder="host/proxy.php">
+        <button id="proxyCheck" class="btn" type="button">Проверить</button>
+      </div>
+      <p id="proxyState" class="hint">Необязательно. Нужен только для бандлов с чужих доменов без CORS:
+        PHP-скрипт <code>host/proxy.php</code> скачивает файл на сервере и отдаёт его с вашего домена.
+        Пустой адрес — прокси выключен.</p>
+    </details>
 
     <div id="chips" class="chips" aria-live="polite"></div>
 
@@ -129,10 +145,17 @@
           Сервер нужен только чтобы отдать статические файлы.</p>
       </div>
       <div>
-        <h3>Свои бандлы на GitHub Pages</h3>
+        <h3>Бандлы прямо с сервера игры</h3>
+        <p>Сервер игры не отдаёт CORS-заголовок, поэтому браузер сам файл не прочитает.
+          Нажмите «Сервер игры» — просмотрщик спросит у <code>host/proxy.php</code> список бандлов
+          и будет качать их через ваш же домен. Файлы кэшируются на сервере, так что повторные
+          открытия быстрые, а обновление подхватывается само.</p>
+      </div>
+      <div>
+        <h3>Свои бандлы рядом с сайтом</h3>
         <p>Положите файлы в <code>public/bundles/</code> и задеплойте сайт. Список можно задать
           в <code>bundles/bundles.json</code>, иначе просмотрщик проверит известные имена игры.
-          Чужие домены без CORS открыть нельзя — скачайте файл и перетащите его в окно.</p>
+          Для локальной работы ничего не нужно: перетащите файл в окно.</p>
       </div>
     </div>
   </section>

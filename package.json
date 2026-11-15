@@ -13,6 +13,7 @@
     "prebuild": "texture2ddecoder-copy-wasm public/wasm",
     "build": "vite build",
     "preview": "vite preview",
+    "pack": "npm run build && node scripts/pack-host.mjs",
     "samples": "node scripts/fetch-samples.mjs"
   },
   "dependencies": {
