@@ -32,10 +32,13 @@ window.API_URL = 'https://meowtech.bid/webp_assets/api.php';
 
 ```json
 POST api.php
-Content-Type: application/json
+Content-Type: text/plain
 
 { "action": "test", "bundle": "itemicons" }
 ```
+
+`text/plain` — чтобы браузер не отправлял preflight OPTIONS: хостинг обрывает
+такие запросы. Тело всё равно JSON, PHP разбирает его из `php://input`.
 
 Ответ:
 

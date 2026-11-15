@@ -77,7 +77,9 @@
 
     fetch(apiUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      // text/plain — «простой» запрос: браузер не делает preflight OPTIONS,
+      // который хостинг обрывает. Тело всё равно JSON, PHP его разбирает сам.
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
       body: JSON.stringify({ action: 'test', bundle: bundle })
     })
       .then(function (res) {
