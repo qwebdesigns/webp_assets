@@ -1,0 +1,94 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 40px 20px;
+  font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  color: #e8e8e8;
+  background: #14161a;
+}
+
+main {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.hint {
+  margin: 0 0 24px;
+  color: #9aa0aa;
+}
+
+button {
+  padding: 12px 32px;
+  font: inherit;
+  font-weight: 600;
+  color: #14161a;
+  background: #6fd08c;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { background: #84e0a0; }
+button:disabled { opacity: .55; cursor: default; }
+
+.status {
+  margin: 18px 0 0;
+  color: #9aa0aa;
+}
+
+.status.ok { color: #6fd08c; }
+.status.error { color: #f4776b; }
+
+table {
+  width: 100%;
+  margin-top: 20px;
+  border-collapse: collapse;
+}
+
+th, td {
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid #262a31;
+  vertical-align: top;
+}
+
+th {
+  width: 40%;
+  font-weight: 500;
+  color: #9aa0aa;
+}
+
+td { word-break: break-all; }
+
+details {
+  margin-top: 18px;
+  color: #9aa0aa;
+}
+
+summary { cursor: pointer; }
+
+pre {
+  margin: 10px 0 0;
+  padding: 12px;
+  max-height: 360px;
+  overflow: auto;
+  font-size: 12px;
+  background: #0d0f12;
+  border: 1px solid #262a31;
+  border-radius: 6px;
+}
+
+.api-url {
+  margin-top: 28px;
+  font-size: 13px;
+  color: #6d7480;
+}
+
+code { word-break: break-all; }

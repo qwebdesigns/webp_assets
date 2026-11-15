@@ -1,25 +1,14 @@
+# Старое (vite-версия) — в архив, на хостинг не грузим.
+backup/
+
+# PHP-часть: живёт только на хостинге, в репозиторий не попадает.
+Server/
+
+# Мусор
 node_modules/
-dist/
-public/wasm/
-upload/
-upload.zip
-
-# Скачанные бандлы (`npm run samples`) — чужие ассеты, в git по умолчанию не попадают.
-public/bundles/*.webp
-public/bundles/*.bundle
-public/bundles/*.unity3d
-public/bundles/*.assets
-public/bundles/*.dat
-public/bundles/*.bin
-!public/bundles/bundles.example.json
-!public/bundles/bundles.json
-
-__pycache__/
-*.pyc
-.venv/
-venv/
-
-# Папка хоста и переменные окружения — не коммитить в git.
-# Файл конфигурации переопределится на хосте.
-host/
-host/.env
+$RECYCLE.BIN/
+Thumbs.db
+desktop.ini
+.DS_Store
+*.log
+.cache/

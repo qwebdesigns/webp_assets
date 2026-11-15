@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API test</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <h1>Проверка API</h1>
+  <p class="hint">Кнопка отправляет POST на PHP-скрипт. Скрипт сам скачивает бандл с сервера игры и возвращает его заголовок.</p>
+
+  <button id="test" type="button">Тест</button>
+
+  <p id="status" class="status">Готово к проверке</p>
+
+  <table id="result" hidden>
+    <tbody></tbody>
+  </table>
+
+  <details id="raw-box" hidden>
+    <summary>Сырой JSON</summary>
+    <pre id="raw"></pre>
+  </details>
+
+  <p class="api-url">API: <code id="api-url"></code></p>
+</main>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
