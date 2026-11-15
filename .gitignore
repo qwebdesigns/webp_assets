@@ -6,6 +6,7 @@ Server/
 
 # Мусор
 node_modules/
+tools/node_modules/
 $RECYCLE.BIN/
 Thumbs.db
 desktop.ini

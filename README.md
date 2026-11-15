@@ -1,69 +1,59 @@
-# API-тест
+# BLOCKADE asset viewer
 
-Минимальная проверка связки **GitHub Pages → PHP на своём хостинге → сервер игры**.
+Просмотр ассетов игры BLOCKADE прямо в браузере: страница на GitHub Pages,
+данные — с официального сервера игры через PHP-прокси на своём хостинге.
+Бандлы нигде не сохраняются: PHP стримит файл в браузер, браузер разбирает его
+в воркере.
 
-- `Github/` — статическая страница с одной кнопкой «Тест». Уходит в GitHub Pages.
-- `Server/` — один PHP-скрипт `api.php`. Живёт на хостинге, в git не попадает.
-
-Нажатие кнопки отправляет POST на `api.php`. Скрипт сам скачивает бандл с
-`blockade3d.com`, читает заголовок UnityFS и возвращает JSON: размер, версию
-Unity, сигнатуру, время ответа. Ни страница, ни хостинг ничего не сохраняют.
+- `Github/` — статическая страница. Уходит в GitHub Pages как есть.
+- `Server/` — один PHP-файл `api.php`. Живёт на хостинге, в git не попадает.
 
 ## Страница
 
 https://qwebdesigns.github.io/webp_assets/
 
-Адрес API задаётся в `Github/config.js`:
+Что умеет:
 
-```js
-window.API_URL = 'https://meowtech.bid/webp_assets/api.php';
+- 23 бандла списком (имена как в `BLOCKADE/AssetBundles`);
+- сетка ассетов с ленивыми превью, поиском по имени и фильтром по типу;
+- карточка ассета: полное изображение, проигрывание звука, текст, скачивание.
+
+Адрес API задаётся в `Github/config.js`, можно переопределить через `?api=`.
+
+## API
+
+`Server/api.php`, константы в начале файла.
+
+| Запрос | Ответ |
+| --- | --- |
+| `GET ?ping=1` | диагностика: PHP, cURL, CA, список бандлов |
+| `GET ?bundles=1` | список доступных бандлов |
+| `GET ?bundle=itemicons` | бинарный поток бандла (`application/octet-stream`) |
+| `POST {"action":"test","bundle":"itemicons"}` | заголовок UnityFS в JSON |
+
+Скачивание бандла — потоком: cURL читает с `blockade3d.com` и сразу пишет
+клиенту, на диск ничего не попадает (`Content-Length` берётся из заголовков
+источника, `X-Accel-Buffering: no` отключает буферизацию nginx).
+
+Белый список имён — `const BUNDLES`, открытым прокси скрипт не станет.
+
+## Структура
+
+```
+Github/            index.html, app.js, style.css, config.js
+                   viewer-worker.js  — собранный воркер (парсер + декодер)
+                   wasm/             — декодер текстур
+Server/            api.php, .htaccess, cacert.pem  (в git не попадает)
+tools/             исходник воркера и инструкция по пересборке
+backup/            старая vite-версия (в git не попадает)
 ```
 
-Можно переопределить без правки файла: `?api=https://example.com/api.php`.
-
-## Хостинг
-
-Содержимое `Server/` (`api.php`, `.htaccess`, `cacert.pem`) заливается в
-`public_html/meowtech.bid/webp_assets/`. Подробности — `Server/README.md`.
-
-Проверка после загрузки: `https://meowtech.bid/webp_assets/api.php?ping=1`.
-
-## Формат запроса
-
-```json
-POST api.php
-Content-Type: text/plain
-
-{ "action": "test", "bundle": "itemicons" }
-```
-
-`text/plain` — чтобы браузер не отправлял preflight OPTIONS: хостинг обрывает
-такие запросы. Тело всё равно JSON, PHP разбирает его из `php://input`.
-
-Ответ:
-
-```json
-{
-  "ok": true,
-  "api": "1.0",
-  "bundle": {
-    "name": "itemicons.webp",
-    "httpStatus": 206,
-    "bytes": 4096688,
-    "unityVersion": "6000.3.5f2",
-    "signature": "UnityFS",
-    "formatVersion": 8,
-    "isBundle": true
-  },
-  "timings": { "downloadMs": 210, "totalMs": 215 }
-}
-```
+Воркер собирается заранее и лежит готовым файлом — сборки на GitHub Pages нет.
+Как пересобрать: `tools/README.md`.
 
 ## Развёртывание
 
-`.github/workflows/deploy.yml` публикует папку `Github/` на GitHub Pages при
-пуше в `main`.
-
-## Архив
-
-Старая vite-версия лежит в `backup/` и в git не попадает.
+1. Залить `Server/api.php`, `Server/.htaccess`, `Server/cacert.pem` в
+   `public_html/meowtech.bid/webp_assets/` (перезаписать старые).
+2. Проверить `https://meowtech.bid/webp_assets/api.php?ping=1`.
+3. Пуш в `main` — workflow `.github/workflows/deploy.yml` публикует `Github/`.

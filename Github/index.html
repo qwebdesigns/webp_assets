@@ -3,29 +3,41 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>API test</title>
+<title>BLOCKADE — ассеты</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<main>
-  <h1>Проверка API</h1>
-  <p class="hint">Кнопка отправляет POST на PHP-скрипт. Скрипт сам скачивает бандл с сервера игры и возвращает его заголовок.</p>
+<header>
+  <h1>BLOCKADE — ассеты</h1>
+  <p class="note">Бандлы читаются в браузере, качаются через PHP-прокси на моём хостинге. На серверах ничего не хранится.</p>
+</header>
 
-  <button id="test" type="button">Тест</button>
+<nav id="bundles" class="bundles" aria-label="Бандлы"></nav>
 
-  <p id="status" class="status">Готово к проверке</p>
+<section class="toolbar">
+  <input id="search" type="search" placeholder="Поиск по имени…" autocomplete="off">
+  <select id="type">
+    <option value="">Все типы</option>
+  </select>
+  <span id="status" class="status">Выберите бандл</span>
+</section>
 
-  <table id="result" hidden>
-    <tbody></tbody>
-  </table>
+<div id="progress" class="progress" hidden><div id="progress-bar"></div></div>
 
-  <details id="raw-box" hidden>
-    <summary>Сырой JSON</summary>
-    <pre id="raw"></pre>
-  </details>
+<main id="grid" class="grid"></main>
 
-  <p class="api-url">API: <code id="api-url"></code></p>
-</main>
+<div id="overlay" class="overlay" hidden>
+  <div class="panel">
+    <button id="close" class="close" type="button" aria-label="Закрыть">×</button>
+    <div id="preview" class="preview"></div>
+    <div class="details">
+      <h2 id="asset-name"></h2>
+      <dl id="asset-meta"></dl>
+      <a id="download" class="download" download>Скачать</a>
+    </div>
+  </div>
+</div>
+
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

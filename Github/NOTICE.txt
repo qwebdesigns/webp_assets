@@ -1,0 +1,10 @@
+BLOCKADE asset viewer
+=====================
+
+Разбор Unity AssetBundle и декодирование текстур выполняют сторонние
+библиотеки, собранные в Github/viewer-worker.js:
+
+- unity-asset-reader (MIT) — https://github.com/fatal10110/unity-asset-reader
+- unity-asset-reader-texture (MIT AND Apache-2.0) — тот же репозиторий
+- texture2ddecoder-wasm (Apache-2.0) — декодеры BC/ETC/ASTC/PVRTC
+- fflate (MIT) — сжатие PNG
