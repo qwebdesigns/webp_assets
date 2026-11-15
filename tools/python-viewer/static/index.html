@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Bundle Viewer — Unity AssetBundle по ссылке</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath fill='%236ea8fe' d='M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 7 3.9-7 3.9-7-3.9 7-3.9ZM5 9.6l6 3.4v6.8l-6-3.3V9.6Zm8 10.2v-6.8l6-3.4v6.9l-6 3.3Z'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div id="progress" class="progress" hidden><div></div></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Zm0 2.3 7 3.9-7 3.9-7-3.9 7-3.9ZM5 9.6l6 3.4v6.8l-6-3.3V9.6Zm8 10.2v-6.8l6-3.4v6.9l-6 3.3Z"/>
+      </svg>
+    </span>
+    <div>
+      <h1>Bundle Viewer</h1>
+      <p>Unity AssetBundle прямо по ссылке — всё парсится в памяти, на диск ничего не пишется</p>
+    </div>
+  </div>
+  <div class="top-actions">
+    <span id="statusText" class="status" hidden></span>
+    <a class="btn ghost small" href="https://github.com/K0lb3/UnityPy" target="_blank" rel="noreferrer">UnityPy</a>
+  </div>
+</header>
+
+<main>
+  <section class="panel">
+    <div class="field grow">
+      <label for="src">Ссылка на бандл</label>
+      <div class="control">
+        <input id="src" spellcheck="false" autocomplete="off"
+               placeholder="https://blockade3d.com/ClassicBundles/itemicons.webp">
+        <button id="open" class="btn primary">Открыть</button>
+        <button id="pickFile" class="btn" title="Разобрать локальный файл без сохранения копии">Файл…</button>
+        <input id="file" type="file" hidden>
+      </div>
+    </div>
+
+    <div class="field grow">
+      <label for="base">Папка версии — найти все бандлы</label>
+      <div class="control">
+        <input id="base" spellcheck="false" autocomplete="off"
+               placeholder="https://blockade3d.com/ClassicBundles/">
+        <button id="scan" class="btn">Найти бандлы</button>
+      </div>
+    </div>
+
+    <div id="chips" class="chips"></div>
+  </section>
+
+  <section id="bundleInfo" class="panel info" hidden>
+    <div class="info-head">
+      <div>
+        <h2 id="bundleName"></h2>
+        <p id="bundleMeta" class="muted"></p>
+      </div>
+      <a id="bundleLink" class="btn ghost small" target="_blank" rel="noreferrer">Источник ↗</a>
+    </div>
+    <div id="typeChips" class="chips"></div>
+  </section>
+
+  <section id="toolbar" class="toolbar" hidden>
+    <div class="search">
+      <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M10 4a6 6 0 1 0 3.5 10.9l4.3 4.3 1.4-1.4-4.3-4.3A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/></svg>
+      <input id="search" placeholder="Поиск по имени…  ( / )" autocomplete="off" spellcheck="false">
+    </div>
+    <select id="typeFilter" title="Тип ассета"></select>
+    <select id="sort" title="Сортировка">
+      <option value="name">Имя A→Z</option>
+      <option value="name-desc">Имя Z→A</option>
+      <option value="size">Размер ↓</option>
+    </select>
+    <label class="range" title="Размер превью">Превью
+      <input id="thumbSize" type="range" min="96" max="256" step="8" value="160">
+    </label>
+    <div class="toolbar-right">
+      <span id="resultCount" class="count"></span>
+      <button id="export" class="btn ghost">ZIP</button>
+    </div>
+  </section>
+
+  <section id="grid" class="grid"></section>
+
+  <div id="empty" class="empty" hidden>
+    <div class="empty-icon">🖼</div>
+    <p id="emptyText">Вставьте ссылку на бандл и нажмите «Открыть».</p>
+  </div>
+</main>
+
+<div id="drop" class="drop" hidden>
+  <div>Отпустите файл бандла</div>
+  <small>файл будет разобран в памяти</small>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<dialog id="modal" class="modal">
+  <div class="modal-head">
+    <div class="modal-title">
+      <h2 id="mTitle"></h2>
+      <div id="mSub" class="muted"></div>
+    </div>
+    <div class="modal-actions">
+      <button id="mPrev" class="btn ghost icon" title="Предыдущий (←)">←</button>
+      <button id="mNext" class="btn ghost icon" title="Следующий (→)">→</button>
+      <button id="mClose" class="btn ghost icon" title="Закрыть (Esc)">✕</button>
+    </div>
+  </div>
+
+  <div class="modal-body">
+    <div id="mStage" class="stage"></div>
+    <aside id="mMeta" class="meta"></aside>
+  </div>
+
+  <div class="modal-foot">
+    <a id="mDownload" class="btn primary" download>Скачать</a>
+    <a id="mRaw" class="btn ghost" download>Сырые байты</a>
+    <button id="mCopy" class="btn ghost">Копировать имя</button>
+    <span id="mPos" class="muted pos"></span>
+  </div>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

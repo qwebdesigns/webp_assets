@@ -1,0 +1,18 @@
+node_modules/
+dist/
+public/wasm/
+
+# Тестовые бандлы, скачанные `npm run samples` (это чужие ассеты).
+# Свои файлы можно коммитить — уберите нужные строки или добавьте исключения.
+public/bundles/*.webp
+public/bundles/*.bundle
+public/bundles/*.unity3d
+public/bundles/*.assets
+public/bundles/*.dat
+public/bundles/*.bin
+!public/bundles/bundles.example.json
+
+__pycache__/
+*.pyc
+.venv/
+venv/
