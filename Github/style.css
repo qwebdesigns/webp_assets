@@ -76,6 +76,27 @@ h1 {
   margin-left: auto;
 }
 
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #9aa0aa;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input { accent-color: #6fd08c; cursor: pointer; }
+
+/* Пиксель-пёрфект: без сглаживания при масштабировании.
+   Включается чекбоксом в тулбаре (body.pixelated). */
+body.pixelated .thumb img,
+body.pixelated .preview img {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
 .status.ok { color: #6fd08c; }
 .status.error { color: #f4776b; }
 
@@ -245,6 +266,18 @@ h1 {
   object-fit: contain;
 }
 
+.preview.actual {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.preview.actual img {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+}
+
 .preview audio { width: 100%; }
 
 .preview pre {
@@ -303,3 +336,25 @@ h1 {
 }
 
 .close:hover { color: #e8e8e8; }
+
+.zoom {
+  position: absolute;
+  top: 13px;
+  right: 52px;
+  padding: 5px 10px;
+  font: inherit;
+  font-size: 12px;
+  color: #c9ced8;
+  background: #23272f;
+  border: 1px solid #333a45;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.zoom:hover { background: #2c313a; }
+.zoom[hidden] { display: none; }
+.zoom[aria-pressed="true"] {
+  color: #14161a;
+  background: #6fd08c;
+  border-color: #6fd08c;
+}

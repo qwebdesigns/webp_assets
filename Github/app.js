@@ -21,6 +21,7 @@
     search: document.getElementById('search'),
     type: document.getElementById('type'),
     status: document.getElementById('status'),
+    pixelated: document.getElementById('pixelated'),
     progress: document.getElementById('progress'),
     bar: document.getElementById('progress-bar'),
     grid: document.getElementById('grid'),
@@ -29,6 +30,7 @@
     name: document.getElementById('asset-name'),
     meta: document.getElementById('asset-meta'),
     download: document.getElementById('download'),
+    zoom: document.getElementById('zoom'),
     close: document.getElementById('close')
   };
 
@@ -43,6 +45,12 @@
   var thumbRunning = 0;
   var observer = null;
   var overlayUrl = null;
+
+  function applyPixelated() {
+    document.body.classList.toggle('pixelated', els.pixelated.checked);
+  }
+
+  applyPixelated();
 
   worker.onmessage = function (event) {
     var message = event.data;
@@ -342,6 +350,10 @@
 
     els.overlay.hidden = false;
     els.preview.textContent = 'Загрузка…';
+    els.preview.classList.remove('actual');
+    els.zoom.hidden = asset.preview !== 'image';
+    els.zoom.textContent = '1:1';
+    els.zoom.setAttribute('aria-pressed', 'false');
     els.name.textContent = asset.name;
     els.download.hidden = true;
     fillMeta(asset);
@@ -412,6 +424,7 @@
   function closeOverlay() {
     els.overlay.hidden = true;
     els.preview.textContent = '';
+    els.preview.classList.remove('actual');
     if (overlayUrl) {
       URL.revokeObjectURL(overlayUrl);
       overlayUrl = null;
@@ -448,6 +461,12 @@
 
   els.search.addEventListener('input', drawGrid);
   els.type.addEventListener('change', drawGrid);
+  els.pixelated.addEventListener('change', applyPixelated);
+  els.zoom.addEventListener('click', function () {
+    var actual = els.preview.classList.toggle('actual');
+    els.zoom.setAttribute('aria-pressed', actual ? 'true' : 'false');
+    els.zoom.textContent = actual ? 'По размеру' : '1:1';
+  });
   els.close.addEventListener('click', closeOverlay);
   els.overlay.addEventListener('click', function (event) {
     if (event.target === els.overlay) closeOverlay();

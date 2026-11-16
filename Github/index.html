@@ -19,6 +19,7 @@
   <select id="type">
     <option value="">Все типы</option>
   </select>
+  <label class="toggle"><input id="pixelated" type="checkbox" checked> пиксель-пёрфект</label>
   <span id="status" class="status">Выберите бандл</span>
 </section>
 
@@ -28,6 +29,7 @@
 
 <div id="overlay" class="overlay" hidden>
   <div class="panel">
+    <button id="zoom" class="zoom" type="button" hidden>1:1</button>
     <button id="close" class="close" type="button" aria-label="Закрыть">×</button>
     <div id="preview" class="preview"></div>
     <div class="details">
